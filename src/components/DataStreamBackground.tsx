@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 export default function DataStreamBackground() {
-    const canvasRef = useRef(null);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
