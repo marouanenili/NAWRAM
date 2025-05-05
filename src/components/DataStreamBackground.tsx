@@ -6,10 +6,12 @@ export default function DataStreamBackground() {
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        const ctx = canvas.getContext('2d');
 
-        let animationFrameId;
-        const lines = new Array(400).fill().map(() => ({
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return; // ← sécurise l'accès à ctx
+
+        let animationFrameId: number;
+        const lines = new Array(400).fill(null).map(() => ({
             x: Math.random() * window.innerWidth,
             y: Math.random() * window.innerHeight,
             speed: 1 + Math.random() * 2,
@@ -22,10 +24,10 @@ export default function DataStreamBackground() {
         };
 
         const render = () => {
-            if (!ctx) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = '#38bdf8';
             ctx.lineWidth = 2;
+
             lines.forEach((line) => {
                 ctx.beginPath();
                 ctx.moveTo(line.x, line.y);
@@ -38,6 +40,7 @@ export default function DataStreamBackground() {
                     line.x = Math.random() * window.innerWidth;
                 }
             });
+
             animationFrameId = requestAnimationFrame(render);
         };
 
