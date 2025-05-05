@@ -4,11 +4,11 @@ export default function DataStreamBackground() {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
     useEffect(() => {
-        const canvas = canvasRef.current;
+        const canvas = canvasRef.current as HTMLCanvasElement | null;
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
-        if (!ctx) return; // ← sécurise l'accès à ctx
+        if (!ctx) return;
 
         let animationFrameId: number;
         const lines = new Array(400).fill(null).map(() => ({
