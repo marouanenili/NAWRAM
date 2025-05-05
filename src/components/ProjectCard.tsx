@@ -1,7 +1,15 @@
 import Image from 'next/image';
-import {forEachEntryModule} from "next/dist/build/webpack/utils";
 
-export default function ProjectCard({ title, description, image, link , techno}) {
+// Définir les types des props
+interface ProjectCardProps {
+    title: string;
+    description: string;
+    image: string;
+    link: string;
+    techno: string[];
+}
+
+export default function ProjectCard({ title, description, image, link, techno }: ProjectCardProps) {
     return (
         <a
             href={link}
@@ -25,13 +33,11 @@ export default function ProjectCard({ title, description, image, link , techno})
                 <div className="mt-4 flex flex-wrap gap-2">
                     {techno.map((tech, index) => (
                         <span key={index} className="bg-slate-700 px-3 py-1 rounded text-white">
-          {tech}
-        </span>
+              {tech}
+            </span>
                     ))}
                 </div>
             </div>
-
-
         </a>
     );
 }

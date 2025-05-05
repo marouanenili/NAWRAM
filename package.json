@@ -32,7 +32,7 @@
     "typescript": "^5"
   },
   "scripts": {
-    "build": "NEXT_IGNORE_TYPE_ERRORS=true next build"
+    "build": "next build --no-lint"
   }
 
 }

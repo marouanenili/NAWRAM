@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const commands = [
+const commands: string[] = [
     '> Initializing Big Data pipelines...✔',
     '> Processing Terrabytes of data with Apache Spark...✔',
     '> Delivering actionable insights ✔',
@@ -8,15 +8,17 @@ const commands = [
 ];
 
 export default function TerminalIntro() {
-    const [currentLine, setCurrentLine] = useState(0);
-    const [displayedText, setDisplayedText] = useState('');
+    const [currentLine, setCurrentLine] = useState<number>(0);
+    const [displayedText, setDisplayedText] = useState<string>('');
 
     useEffect(() => {
         if (currentLine >= commands.length) {
-            setCurrentLine(0);}
+            setCurrentLine(0);
+        }
 
         const line = commands[currentLine];
         let i = 0;
+
         const interval = setInterval(() => {
             if (i < line.length - 1) {
                 setDisplayedText((prev) => prev + line[i]);
@@ -30,14 +32,12 @@ export default function TerminalIntro() {
             }
         }, 100);
 
-
         return () => clearInterval(interval);
     }, [currentLine]);
 
     return (
         <div className="bg-black text-green-400 font-mono text-md md:text-lg p-4 rounded-md shadow-md max-w-xl mx-auto">
-            <p>{displayedText || "\u00a0"}</p>
-
+            <p>{displayedText || '\u00a0'}</p>
         </div>
     );
 }
