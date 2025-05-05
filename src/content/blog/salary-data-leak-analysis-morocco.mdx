@@ -1,0 +1,214 @@
+---
+title: "Extracting and Analyzing Sensitive Salary Data Leaks at Scale"
+date: "2025-05-03"
+excerpt: "How I processed 50,000 leaked PDFs using Python, NiFi, and Elasticsearch to analyze salary data for over 1.3 million Moroccans."
+---
+
+### Introduction
+
+In early 2025, a massive dataset containing the **leaked salary information of over 1.3 million Moroccans** began circulating on the web. It was a serious event — widely discussed in media and social networks.
+
+As a Big Data engineer, I saw this as a **technical opportunity** to test real-world data processing at scale. With over **50,000 PDF files** named arbitrarily and lacking structure, the dataset was unusable in its raw form.
+
+This project had three main goals:
+
+1. **Master Big Data tooling**
+   I wanted hands-on experience with tools like **Apache NiFi** and **Elasticsearch**, which are powerful but rarely applied meaningfully without real large-scale data.
+
+2. **Design a scalable, real-world pipeline**
+   Extract, clean, normalize and index PDF content into a searchable format, using a full ETL pipeline.
+
+3. **Generate insights & analytics**
+   - Which companies pay the most?
+   - What are the salary medians by region and industry?
+   - Can we classify businesses by size and sector?
+   - Can we infer salary inequality between genders?
+
+> ⚠️ **Disclaimer**: The goal of this project is purely analytical and educational.
+> It is not intended to expose or disclose any personal information.
+> All names and identifying details in the dataset were anonymized before processing.
+> This is strictly a study of aggregate trends and not individual data.
+
+### Step 1 – Parsing 50,000 PDFs with Python
+
+Handling a dataset of this scale introduced both **volume-related challenges** and **data extraction complexity**. The PDFs were raw and unstructured, named with random strings, and often included messy formatting, Arabic headers, or scanned inconsistencies. Some even lacked full tables.
+
+To process them efficiently, I wrote a custom **Python pipeline** with these core features:
+
+#### 🧩 1. Extracting Company Metadata
+
+The first page of each PDF contains legal and administrative metadata about the employer:
+- Company name (raison sociale)
+- Business activity
+- Fiscal identifiers
+- City and address
+
+Using `pdfplumber`, I extracted text from page 1 and applied **custom regular expressions** to clean Arabic characters and locate known key-value fields.
+
+#### 📄 2. Parsing Salary Tables
+
+All subsequent pages contain tabular data about individual employees, including:
+- Full name
+- Monthly salary
+- Registration number
+
+These tables were parsed row by row. I implemented logic to:
+- Filter malformed or incomplete rows
+- Normalize salary values (e.g., remove spaces, convert commas to dots)
+- Validate with conditions like `row[0].isdigit()` to ensure row integrity
+
+#### ⚙️ 3. Performance Optimization
+
+To handle over 50,000 PDFs in a reasonable time, the script used a `ThreadPoolExecutor` with **up to 100 concurrent threads**.
+
+Despite this parallelism, the process still required nearly **48 hours** to complete — primarily due to the heavy I/O and parsing cost across such a large number of files.
+
+> ⏱️ Hardware specs: AMD Ryzen 7-core processor with 16GB RAM.
+
+Each PDF produced two outputs:
+- `*_entreprise.json`: general company metadata
+- `*_salary.json`: list of cleaned and structured salary entries
+
+Processed PDFs were renamed with the suffix `finished.pdf` to prevent double processing. Any failed files were logged in `unprocessed.txt` for later investigation.
+
+#### 🛡️ 4. Data Sanitization
+
+
+To respect privacy and ethical boundaries, the **last names of individuals were removed** entirely from the extracted data. Only **first names were preserved** for a single purpose: enabling **gender inference** and thus supporting analysis of **salary disparities between men and women**.
+
+The gender was inferred using a simple but consistent heuristic:
+For every employee name field (often structured as `F1 F2 F3 LastName1 LastName2`), only the **last word in the string** was preserved — which typically corresponds to the **main first name** in Moroccan naming conventions.
+
+For example:
+- `"NILI Marouane"` → retained: `"Marouane"` → interpreted as male
+- `"NILI Mohamed Amine"` → retained: `"Amine"` → interpreted as male
+
+This method proved effective in capturing gender from thousands of entries with reasonable accuracy. No gender was assumed if the result was ambiguous or unfamiliar.
+
+> 🔒 Ethical Note: The goal was strictly statistical. No last names were retained, and no attempt was made to re-identify individuals. This project respects all privacy and anonymity principles.
+
+### Step 2 – Data Flow Design with Apache NiFi
+
+After extracting structured JSON files from over 50,000 PDFs, the next step was to **clean, route, and push this data to Elasticsearch** for querying and visualization.
+
+To do this, I set up my own instance of **Apache NiFi 2.0**, hosted on a local server — a process I’ve detailed in a separate blog post. NiFi offered a perfect no-code/low-code environment to manage the complexity of large-scale data movement with excellent traceability and retry mechanisms.
+
+Here’s the core flow I designed:
+
+![NiFi Flow Diagram](/images/nifi-flow.png)
+
+#### 🔄 Flow Overview
+
+1. **ListFile / FetchFile**
+   The flow starts by scanning a directory where the JSON files are dropped. Each file is fetched individually for processing.
+
+2. **ReplaceText processors**
+   These are used to patch certain values or reformat parts of the JSON before ingestion (e.g., field normalization, fixing brackets or special characters).
+
+3. **SplitJson**
+   Each JSON file containing multiple records is split into **individual salary entries** — one per document — for easier indexing.
+
+4. **RouteOnAttribute & ReplaceText**
+   Invalid or unmatched documents are filtered out and cleaned separately with custom processors.
+
+5. **PutElasticsearchJson**
+   The cleaned and normalized documents are finally sent to Elasticsearch via its REST API, using NiFi’s dedicated processor.
+
+6. **LogAttribute**
+   Used to monitor failures and capture document metadata for debugging and traceability.
+
+---
+
+#### ⚡ Why NiFi? Two Key Advantages
+
+- **Speed and Efficiency**
+  What took **over 2 days** to process in Python (due to I/O and CPU-bound PDF parsing) was transformed and streamed through NiFi **almost instantly**. This is largely thanks to NiFi’s underlying **Java engine** and streaming-based architecture — which handles tens of thousands of flowfiles with low latency.
+
+- **Built-in Error Handling**
+  One of NiFi’s greatest strengths is its **resilience**. Any flowfile that fails during routing or transformation is **automatically queued**. These failed files can be **individually reviewed**, routed to custom `ReplaceText` processors, or even re-injected manually — without restarting or breaking the flow.
+
+> 🔍 This makes NiFi an invaluable tool not only for data transformation, but also for controlled and auditable data repair.
+
+---
+
+#### 🔁 Retrospective: What I'd Do Differently
+
+If I had to rebuild this project from scratch, I would likely **skip the Python data cleaning phase altogether**. Instead, I would write the transformation logic directly in **NiFi**, using Java-powered processors for faster, scalable batch processing.
+
+This approach would have allowed for **real-time flow**: as soon as each JSON file was emitted by Python, NiFi could immediately ingest, clean, and route it to Elasticsearch. By the time the PDF script finished, most of the data was already indexed — removing the need for any separate post-processing stage.
+
+> 💡 NiFi not only handled data at scale with impressive speed, but also enabled **stream-style processing** for a more reactive and efficient architecture.
+
+
+### Step 3 – Indexing & Querying in Elasticsearch
+
+After processing and cleaning the data through Apache NiFi, the final step was to **make it searchable and analyzable**. For this, I used **Elasticsearch**, a powerful distributed search and analytics engine.
+
+The goal was to allow rich queries over the salary dataset — including filtering by activity sector and analyzing salary distributions across companies and regions.
+
+---
+
+#### 📦 Index Structure and Mapping
+
+Each JSON document sent from NiFi represented a single employee entry. Here's an example of a typical structure:
+
+```json
+{
+  "prenom": "Marouane",
+  "salaire": 8500,
+  "id": "123456",
+  "entreprise": "NILI TECH",
+  "rc": "987654321",
+  "activite": "Informatique"
+}
+```
+The index was created with a simple but effective mapping to support:
+
+- Full-text search on entreprise and activite
+
+- Numerical aggregation on salaire
+
+- Unique identification using id and rc
+
+Here is the request used to create the index:
+```json
+PUT /salaries
+{
+  "mappings": {
+    "properties": {
+      "prenom":     { "type": "keyword" },
+      "salaire":    { "type": "float" },
+      "id":        { "type": "keyword" },
+      "entreprise": { "type": "text" },
+      "rc":         { "type": "keyword" },
+      "activite":   { "type": "text" }
+    }
+  }
+}
+```
+Once the NiFi pipeline finished streaming all data into Elasticsearch, I moved on to run my very first query — a simple **document count** — just to verify the volume of successfully indexed records.
+
+The result was... astonishing.
+
+```kibana
+GET /salaires/_count
+```
+It returned:
+
+```json
+{
+  "count": 1343184,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  }
+}
+```
+📊 That’s over *1.34 million* salary entries, extracted and indexed from more than 50,000 PDF files. This confirmed not only the success of the pipeline but also the sheer scale of the dataset I was now able to work with.
+
+And now, the boring part has finished — we can finally start having fun with some real data.
+
+### Step 4 - Enriching the dataset with gender of employes
+first of all I downloaded a dataset from kaggle [names](https://www.kaggle.com/datasets/erpel1/forenames-and-surnames-with-gender-and-country?resource=download&select=forenames.csv) this data set contained 8m names and there gender

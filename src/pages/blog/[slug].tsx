@@ -1,33 +1,52 @@
-import { useRouter } from 'next/router';
-import Head from 'next/head';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
-import blogPosts from '@/content/blog';
+import { GetStaticPaths, GetStaticProps } from 'next';
+import { MDXRemote, MDXRemoteSerializeResult } from 'next-mdx-remote';
+import { serialize } from 'next-mdx-remote/serialize';
+import matter from 'gray-matter';
+import fs from 'fs';
+import path from 'path';
 
-export default function BlogPost() {
-    const router = useRouter();
-    const { slug } = router.query;
-    const post = blogPosts.find((p) => p.slug === slug);
+interface BlogPostProps {
+    source: MDXRemoteSerializeResult;
+    frontMatter: {
+        title: string;
+        date: string;
+        excerpt?: string;
+    };
+}
 
-    if (!post) return <div className="text-white p-8">Loading...</div>;
-
+export default function BlogPost({ source, frontMatter }: BlogPostProps) {
     return (
-        <div className="bg-slate-900 text-slate-100 font-sans min-h-screen">
-            <Head>
-                <title>{post.title} – Marouane Nili</title>
-                <meta name="description" content={post.excerpt} />
-            </Head>
-
-            <main className="px-4 py-20 md:px-16 max-w-3xl mx-auto">
-                <h1 className="text-4xl font-bold mb-6">{post.title}</h1>
-                <p className="text-slate-400 text-sm mb-8">{new Date(post.date).toDateString()}</p>
-                <article className="prose prose-invert max-w-none">
-                    {post.content.split('\n').map((line, i) => (
-                        <p key={i}>{line}</p>
-                    ))}
-                </article>
-            </main>
-
-        </div>
+        <article className="prose prose-invert max-w-5xl mx-auto py-20 px-4">
+            <h1>{frontMatter.title}</h1>
+            <p className="text-slate-400 text-sm mb-4">{frontMatter.date}</p>
+            <MDXRemote {...source} />
+        </article>
     );
 }
+
+export const getStaticPaths: GetStaticPaths = async () => {
+    const blogDir = path.join(process.cwd(), 'src/content/blog');
+    const filenames = fs.readdirSync(blogDir);
+
+    const paths = filenames.map((name) => ({
+        params: { slug: name.replace(/\.mdx$/, '') },
+    }));
+
+    return { paths, fallback: false };
+};
+
+export const getStaticProps: GetStaticProps = async ({ params }) => {
+    const slug = params?.slug as string;
+    const filePath = path.join(process.cwd(), 'src/content/blog', `${slug}.mdx`);
+    const source = fs.readFileSync(filePath, 'utf8');
+
+    const { content, data } = matter(source);
+    const mdxSource = await serialize(content);
+
+    return {
+        props: {
+            source: mdxSource,
+            frontMatter: data,
+        },
+    };
+};

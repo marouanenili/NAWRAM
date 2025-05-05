@@ -32,6 +32,7 @@ export default function About() {
                 <h3 className="text-white text-xl font-semibold mt-10 mb-4 text-center">Technologies I use</h3>
                 <div className="flex flex-wrap justify-center gap-3 text-sm">
                     <span className="bg-slate-800 px-3 py-1 rounded-full text-slate-200">Apache Spark</span>
+                    <span className="bg-slate-800 px-3 py-1 rounded-full text-slate-200">ELK</span>
                     <span className="bg-slate-800 px-3 py-1 rounded-full text-slate-200">Nifi</span>
                     <span className="bg-slate-800 px-3 py-1 rounded-full text-slate-200">Hadoop</span>
                     <span className="bg-slate-800 px-3 py-1 rounded-full text-slate-200">Kafka</span>
